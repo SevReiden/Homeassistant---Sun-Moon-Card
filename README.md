@@ -16,6 +16,11 @@ This card is designed to blend perfectly with modern, dark-mode dashboards (glas
 - 🇩🇪🇬🇧 **Bilingual**: Supports German (`de`) and English (`en`) out of the box (auto-detects from Home Assistant settings).
 
 ---
+<img width="379" height="227" alt="moon" src="https://github.com/user-attachments/assets/cd45895d-b67f-4825-b9f8-8e4d12dc1b76" />
+<img width="361" height="343" alt="sun and moon" src="https://github.com/user-attachments/assets/78523dda-bf4c-40e7-b954-6450e5606827" />
+<img width="360" height="412" alt="full" src="https://github.com/user-attachments/assets/bf8516d8-ef9d-4d2c-941a-0d822aa2bfa1" />
+
+---
 
 ## Installation
 
