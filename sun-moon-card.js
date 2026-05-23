@@ -83,6 +83,20 @@ class SunMoonCard extends HTMLElement {
     this._clockInterval = null;
   }
 
+  static getConfigElement() {
+    return document.createElement('sun-moon-card-editor');
+  }
+
+  static getStubConfig() {
+    return {
+      title: 'Sonne & Mond',
+      show_time: true,
+      show_glow: true,
+      show_line: false,
+      show_info: false
+    };
+  }
+
   setConfig(config) {
     this.config = {
       title: '',
@@ -774,3 +788,252 @@ window.customCards.push({
   preview: true,
   description: 'A glowing, visual semi-circle tracking the paths and real-time positions of the Sun and the Moon.'
 });
+
+// Custom Card Editor Class for Visual Editing support in Home Assistant
+class SunMoonCardEditor extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: 'open' });
+    this._initialized = false;
+  }
+
+  setConfig(config) {
+    this._config = config;
+    this._updateInputs();
+  }
+
+  set hass(hass) {
+    this._hass = hass;
+    this._updateHass();
+  }
+
+  connectedCallback() {
+    if (!this._initialized) {
+      this._init();
+    }
+  }
+
+  _init() {
+    this.shadowRoot.innerHTML = `
+      <style>
+        .card-config {
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+          padding: 8px 0;
+        }
+        .config-item {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+        .config-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+        }
+        label {
+          font-weight: 500;
+          color: var(--primary-text-color);
+          font-size: 14px;
+        }
+        .label-desc {
+          font-size: 12px;
+          color: var(--secondary-text-color);
+          margin-top: -4px;
+        }
+        ha-textfield, ha-entity-picker {
+          width: 100%;
+        }
+      </style>
+      <div class="card-config">
+        <div class="config-item">
+          <label>Titel</label>
+          <ha-textfield 
+            config-value="title">
+          </ha-textfield>
+        </div>
+
+        <div class="config-item">
+          <label>Sonnen-Entität</label>
+          <ha-entity-picker 
+            config-value="sun_entity">
+          </ha-entity-picker>
+        </div>
+
+        <div class="config-item">
+          <label>Mond-Entität</label>
+          <ha-entity-picker 
+            config-value="moon_entity">
+          </ha-entity-picker>
+        </div>
+
+        <hr style="border: 0; border-top: 1px solid var(--divider-color, rgba(255,255,255,0.1)); margin: 8px 0;" />
+
+        <div class="config-row">
+          <div class="config-item">
+            <label>Uhrzeit anzeigen</label>
+            <div class="label-desc">Blendet die Uhrzeit über dem Bogen ein</div>
+          </div>
+          <ha-switch 
+            config-value="show_time">
+          </ha-switch>
+        </div>
+
+        <div class="config-row">
+          <div class="config-item">
+            <label>Hintergrund-Schein anzeigen</label>
+            <div class="label-desc">Aktiviert den farbigen Glow-Hintergrund</div>
+          </div>
+          <ha-switch 
+            config-value="show_glow">
+          </ha-switch>
+        </div>
+
+        <div class="config-row">
+          <div class="config-item">
+            <label>Trennlinie anzeigen</label>
+            <div class="label-desc">Zeigt die Horizontlinie und den unteren gestrichelten Bogen</div>
+          </div>
+          <ha-switch 
+            config-value="show_line">
+          </ha-switch>
+        </div>
+
+        <div class="config-row">
+          <div class="config-item">
+            <label>Info-Gitter anzeigen</label>
+            <div class="label-desc">Zeigt die Zeiten und Winkel am unteren Kartenrand</div>
+          </div>
+          <ha-switch 
+            config-value="show_info">
+          </ha-switch>
+        </div>
+
+        <div class="config-row">
+          <div class="config-item">
+            <label>Sternenhimmel anzeigen</label>
+            <div class="label-desc">Zeigt funkelnde Sterne in der Nacht</div>
+          </div>
+          <ha-switch 
+            config-value="show_stars">
+          </ha-switch>
+        </div>
+
+        <hr style="border: 0; border-top: 1px solid var(--divider-color, rgba(255,255,255,0.1)); margin: 8px 0;" />
+
+        <div class="config-item">
+          <label>Eigenes Sonnen-Bild (URL)</label>
+          <ha-textfield 
+            config-value="sun_image" 
+            placeholder="/local/sun_icon.png">
+          </ha-textfield>
+        </div>
+
+        <div class="config-item">
+          <label>Eigenes Mond-Bild (URL)</label>
+          <ha-textfield 
+            config-value="moon_image" 
+            placeholder="/local/moon_icon.png">
+          </ha-textfield>
+        </div>
+      </div>
+    `;
+
+    // Add event listeners
+    const container = this.shadowRoot.querySelector('.card-config');
+
+    container.querySelectorAll('ha-textfield').forEach(input => {
+      input.addEventListener('input', (ev) => this._valueChanged(input.getAttribute('config-value'), ev.target.value));
+    });
+
+    container.querySelectorAll('ha-entity-picker').forEach(picker => {
+      picker.addEventListener('value-changed', (ev) => this._valueChanged(picker.getAttribute('config-value'), ev.detail.value));
+    });
+
+    container.querySelectorAll('ha-switch').forEach(sw => {
+      sw.addEventListener('change', (ev) => this._valueChanged(sw.getAttribute('config-value'), ev.target.checked));
+    });
+
+    // Set pickers domain filtering programmatically
+    const sunPicker = this.shadowRoot.querySelector('ha-entity-picker[config-value="sun_entity"]');
+    if (sunPicker) sunPicker.includeDomains = ['sun'];
+
+    const moonPicker = this.shadowRoot.querySelector('ha-entity-picker[config-value="moon_entity"]');
+    if (moonPicker) moonPicker.includeDomains = ['sensor'];
+
+    this._initialized = true;
+    this._updateInputs();
+    this._updateHass();
+  }
+
+  _updateInputs() {
+    if (!this._initialized || !this._config) return;
+
+    // Update textfields without clearing focus or cursor position
+    this.shadowRoot.querySelectorAll('ha-textfield').forEach(input => {
+      const configVal = input.getAttribute('config-value');
+      const val = this._config[configVal] || '';
+      if (input.value !== val) {
+        input.value = val;
+      }
+    });
+
+    // Update entity pickers
+    this.shadowRoot.querySelectorAll('ha-entity-picker').forEach(picker => {
+      const configVal = picker.getAttribute('config-value');
+      const val = this._config[configVal] || '';
+      if (picker.value !== val) {
+        picker.value = val;
+      }
+    });
+
+    // Update switches
+    this.shadowRoot.querySelectorAll('ha-switch').forEach(sw => {
+      const configVal = sw.getAttribute('config-value');
+      const val = this._config[configVal];
+      
+      let checked = false;
+      if (configVal === 'show_glow' || configVal === 'show_stars') {
+        checked = val !== false;
+      } else {
+        checked = val === true;
+      }
+      
+      if (sw.checked !== checked) {
+        sw.checked = checked;
+      }
+    });
+  }
+
+  _updateHass() {
+    if (!this._initialized || !this._hass) return;
+
+    // Pass the Home Assistant state object to entity pickers
+    this.shadowRoot.querySelectorAll('ha-entity-picker').forEach(picker => {
+      picker.hass = this._hass;
+    });
+  }
+
+  _valueChanged(configValue, value) {
+    if (!this._config) return;
+
+    if (this._config[configValue] === value) return;
+
+    const newConfig = {
+      ...this._config,
+      [configValue]: value
+    };
+
+    // Dispatch configuration change back to the dashboard editor
+    const event = new CustomEvent('config-changed', {
+      detail: { config: newConfig },
+      bubbles: true,
+      composed: true
+    });
+    this.dispatchEvent(event);
+  }
+}
+
+customElements.define('sun-moon-card-editor', SunMoonCardEditor);
